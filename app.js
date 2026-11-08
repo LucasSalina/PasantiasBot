@@ -318,3 +318,7 @@ app.get('/trigger-check', async (req, res) => {
   const result = await processInternships(true);
   res.status(200).json(result);
 });
+
+app.get('/ping', (req, res) => {
+  res.status(200).send('Pong! 🚀');
+});
