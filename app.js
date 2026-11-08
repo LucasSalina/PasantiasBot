@@ -75,6 +75,27 @@ async function sendDiscordEmbedMessage(content, embeds) {
   }
 }
 
+// Función para editar la respuesta diferida utilizando la variable APP_ID de Render
+async function editOriginalResponse(interactionToken, content, embeds) {
+  const appId = process.env.APP_ID;
+  if (!appId) {
+    console.error('Falta la variable de entorno APP_ID en Render.');
+    return;
+  }
+
+  const url = `https://discord.com/api/v10/webhooks/${appId}/${interactionToken}/messages/@original`;
+  const response = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content, embeds }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Error al editar respuesta diferida en Discord:', errorText);
+  }
+}
+
 // Función centralizada para hacer scraping, extraer el enlace y detectar nuevas pasantías
 async function processInternships(isAutomatic = false) {
   try {
@@ -147,7 +168,8 @@ async function processInternships(isAutomatic = false) {
  * Interactions endpoint URL donde Discord envía las solicitudes HTTP
  */
 app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async function (req, res) {
-  const { type, data } = req.body;
+  // Extraemos el token y datos de la petición de Discord
+  const { type, data, token } = req.body;
 
   if (type === InteractionType.PING) {
     return res.send({ type: InteractionResponseType.PONG });
@@ -157,7 +179,7 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
     const { name } = data;
 
     if (name === 'setchannel') {
-      // 1. Respondemos inmediatamente a Discord con "Thinking..." (Tipo 5) para evitar el timeout
+      // 1. Respondemos inmediatamente a Discord con "Thinking..." (Tipo 5) para evitar el timeout de 3s
       res.send({
         type: InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
       });
@@ -165,7 +187,7 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
       const channelOption = data.options?.find(opt => opt.name === 'canal');
       
       if (!channelOption) {
-        await editOriginalResponse(application_id, token, 'Por favor, selecciona un canal válido.', []);
+        await editOriginalResponse(token, 'Por favor, selecciona un canal válido.', []);
         return;
       }
 
@@ -174,13 +196,12 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
       try {
         fs.writeFileSync(configPath, JSON.stringify({ channelId: selectedChannelId }, null, 2), 'utf-8');
         await editOriginalResponse(
-          application_id, 
           token, 
           `✅ ¡Canal configurado exitosamente! Las alertas automáticas se enviarán a <#${selectedChannelId}>.`, 
           []
         );
       } catch (error) {
-        await editOriginalResponse(application_id, token, `❌ Error al guardar la configuración: ${error.message}`, []);
+        await editOriginalResponse(token, `❌ Error al guardar la configuración: ${error.message}`, []);
       }
       
       return;
@@ -253,7 +274,6 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
       const latestItems = filteredListings.slice(0, 5);
       const embeds = generateEmbeds(latestItems);
 
-      // CORRECCIÓN: Se cambió el punto "." por el signo de interrogación "?" en el operador ternario
       const responseText = keyword
         ? `📋 **Mostrando ${latestItems.length} pasantía(s) para "${keyword}" (de ${filteredListings.length} encontradas):**`
         : `📋 **Mostrando las últimas ${latestItems.length} pasantías registradas:**`;
