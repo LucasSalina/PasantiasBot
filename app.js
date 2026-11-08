@@ -157,22 +157,33 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
     const { name } = data;
 
     if (name === 'setchannel') {
+      // 1. Respondemos inmediatamente a Discord con "Thinking..." (Tipo 5) para evitar el timeout
+      res.send({
+        type: InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
+      });
+
       const channelOption = data.options?.find(opt => opt.name === 'canal');
       
       if (!channelOption) {
-        return res.send({
-          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-          data: { content: 'Por favor, selecciona un canal válido.' },
-        });
+        await editOriginalResponse(application_id, token, 'Por favor, selecciona un canal válido.', []);
+        return;
       }
 
       const selectedChannelId = channelOption.value;
-      fs.writeFileSync(configPath, JSON.stringify({ channelId: selectedChannelId }, null, 2), 'utf-8');
-
-      return res.send({
-        type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-        data: { content: `✅ ¡Canal configurado exitosamente! Las alertas automáticas se enviarán a <#${selectedChannelId}>.` },
-      });
+      
+      try {
+        fs.writeFileSync(configPath, JSON.stringify({ channelId: selectedChannelId }, null, 2), 'utf-8');
+        await editOriginalResponse(
+          application_id, 
+          token, 
+          `✅ ¡Canal configurado exitosamente! Las alertas automáticas se enviarán a <#${selectedChannelId}>.`, 
+          []
+        );
+      } catch (error) {
+        await editOriginalResponse(application_id, token, `❌ Error al guardar la configuración: ${error.message}`, []);
+      }
+      
+      return;
     }
 
     if (name === 'scrape') {
