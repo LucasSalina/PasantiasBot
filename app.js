@@ -8,15 +8,10 @@ import fs from 'fs';
 import path from 'path';
 
 import {
-  ButtonStyleTypes,
-  InteractionResponseFlags,
   InteractionResponseType,
   InteractionType,
-  MessageComponentTypes,
   verifyKeyMiddleware,
 } from 'discord-interactions';
-import { getRandomEmoji, DiscordRequest } from './utils.js';
-import { getShuffledOptions, getResult } from './game.js';
 
 // Create an express app
 const app = express();
@@ -152,7 +147,7 @@ async function processInternships(isAutomatic = false) {
  * Interactions endpoint URL donde Discord envía las solicitudes HTTP
  */
 app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async function (req, res) {
-  const { id, type, data } = req.body;
+  const { type, data } = req.body;
 
   if (type === InteractionType.PING) {
     return res.send({ type: InteractionResponseType.PONG });

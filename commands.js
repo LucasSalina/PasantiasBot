@@ -1,32 +1,6 @@
 import 'dotenv/config';
-import { getRPSChoices } from './game.js';
-import { capitalize, InstallGlobalCommands } from './utils.js';
+import { InstallGlobalCommands } from './utils.js';
 
-// Get the game choices from game.js
-function createCommandChoices() {
-  const choices = getRPSChoices();
-  const commandChoices = [];
-
-  for (let choice of choices) {
-    commandChoices.push({
-      name: capitalize(choice),
-      value: choice.toLowerCase(),
-    });
-  }
-
-  return commandChoices;
-}
-
-// Simple test command
-const TEST_COMMAND = {
-  name: 'test',
-  description: 'Basic command',
-  type: 1,
-  integration_types: [0, 1],
-  contexts: [0, 1, 2],
-};
-
-// Agrega esto junto a tus otros comandos
 const SCRAPE_COMMAND = {
   name: 'scrape',
   description: 'Muestra las pasantias disponibles',
@@ -67,9 +41,7 @@ const LATEST_COMMAND = {
   contexts: [0, 1, 2],
 };
 
-// Modifica ALL_COMMANDS para incluirlo:
-const ALL_COMMANDS = [TEST_COMMAND, SETCHANNEL_COMMAND, SCRAPE_COMMAND, LATEST_COMMAND];
-
+const ALL_COMMANDS = [SETCHANNEL_COMMAND, SCRAPE_COMMAND, LATEST_COMMAND];
 
 async function main() {
   try {
