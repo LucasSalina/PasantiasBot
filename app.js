@@ -27,20 +27,27 @@ const configPath = path.join(process.cwd(), 'config.json');
 const filePath = path.join(process.cwd(), 'pasantias.json');
 const targetUrl = "https://www.frc.utn.edu.ar/seu/pasantias/";
 
-// Función auxiliar para generar un arreglo de Embeds a partir de una lista de pasantías
 function generateEmbeds(items) {
-  // Discord permite un máximo de 10 embeds por mensaje
-  return items.slice(0, 10).map(item => ({
-    title: `📌 ${item.puesto || 'Pasantía'} (${item.referencia})`,
-    color: 0x5865F2, // Color azul/morado estilo Discord Blurple
-    fields: [
-      { name: '🏢 Empresa', value: item.empresa || 'No especificada', inline: true },
-      { name: '🎓 Ingeniería', value: item.ingenieria || 'No especificada', inline: true },
-      { name: '💻 Modalidad', value: item.modalidad || 'No especificada', inline: true },
-      { name: '⏰ Horario', value: item.horario || 'No especificado', inline: true }
-    ],
-    timestamp: new Date().toISOString()
-  }));
+  return items.slice(0, 10).map(item => {
+    const embed = {
+      title: `📌 ${item.puesto || 'Pasantía'} (${item.referencia})`,
+      color: 0x5865F2, // Color azul/morado estilo Discord Blurple
+      fields: [
+        { name: '🏢 Empresa', value: item.empresa || 'No especificada', inline: true },
+        { name: '🎓 Ingeniería', value: item.ingenieria || 'No especificada', inline: true },
+        { name: '💻 Modalidad', value: item.modalidad || 'No especificada', inline: true },
+        { name: '⏰ Horario', value: item.horario || 'No especificado', inline: true }
+      ],
+      timestamp: new Date().toISOString()
+    };
+
+    // Solo añadimos la propiedad url si el item tiene un enlace único real
+    if (item.link && item.link !== targetUrl) {
+      embed.url = item.link;
+    }
+
+    return embed;
+  });
 }
 
 // Función para enviar mensajes con embeds a Discord mediante la API REST
@@ -73,7 +80,7 @@ async function sendDiscordEmbedMessage(content, embeds) {
   }
 }
 
-// Función centralizada para hacer scraping y detectar nuevas pasantías
+// Función centralizada para hacer scraping, extraer el enlace y detectar nuevas pasantías
 async function processInternships(isAutomatic = false) {
   try {
     const scrapeResponse = await fetch(targetUrl);
@@ -90,8 +97,12 @@ async function processInternships(isAutomatic = false) {
       const modalidad = $(element).find('.elementor-element-49f60d6 strong').text().trim();
       const horario = $(element).find('.elementor-element-a44033f strong').text().trim();
 
+      // Buscamos el enlace (href) de la tarjeta
+      let rawLink = $(element).find('a').attr('href') || $(element).closest('a').attr('href');
+      let link = rawLink ? (rawLink.startsWith('http') ? rawLink : new URL(rawLink, targetUrl).href) : targetUrl;
+
       if (referencia && empresa) {
-        currentListings.push({ referencia, puesto, empresa, ingenieria, modalidad, horario });
+        currentListings.push({ referencia, puesto, empresa, ingenieria, modalidad, horario, link });
       }
     });
 
@@ -101,8 +112,14 @@ async function processInternships(isAutomatic = false) {
 
     let savedListings = [];
     if (fs.existsSync(filePath)) {
-      const fileData = fs.readFileSync(filePath, 'utf-8');
-      savedListings = JSON.parse(fileData);
+      const fileData = fs.readFileSync(filePath, 'utf-8').trim();
+      if (fileData) {
+        try {
+          savedListings = JSON.parse(fileData);
+        } catch (e) {
+          savedListings = []; // Si el JSON está dañado o vacío, empieza con un array limpio
+        }
+      }
     }
 
     const savedReferences = new Set(savedListings.map(item => item.referencia));
@@ -116,11 +133,10 @@ async function processInternships(isAutomatic = false) {
     const updatedListings = [...newItems, ...savedListings];
     fs.writeFileSync(filePath, JSON.stringify(updatedListings, null, 2), 'utf-8');
 
-    // Generamos los embeds para las nuevas pasantías
+    // Generamos los embeds que incluirán el enlace en el título
     const embeds = generateEmbeds(newItems);
     const textContent = `🚨 **¡Se encontraron ${newItems.length} nueva(s) pasantía(s)!**`;
 
-    // Si es automático, enviamos los embeds directamente al canal configurado por REST
     if (isAutomatic) {
       await sendDiscordEmbedMessage(textContent, embeds);
     }
@@ -183,7 +199,6 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
       });
     }
 
-    // Nuevo comando /latest para ver las últimas 5 pasantías guardadas
     if (name === 'latest') {
       if (!fs.existsSync(filePath)) {
         return res.send({
@@ -192,7 +207,16 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
         });
       }
 
-      const savedListings = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      const fileData = fs.readFileSync(filePath, 'utf-8').trim();
+      let savedListings = [];
+      if (fileData) {
+        try {
+          savedListings = JSON.parse(fileData);
+        } catch (e) {
+          savedListings = [];
+        }
+      }
+
       if (savedListings.length === 0) {
         return res.send({
           type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
@@ -200,13 +224,38 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
         });
       }
 
-      const latestItems = savedListings.slice(0, 5);
+      // Obtenemos la keyword ingresada por el usuario (si existe)
+      const keywordOption = data.options?.find(opt => opt.name === 'keyword');
+      const keyword = keywordOption ? keywordOption.value.toLowerCase().trim() : null;
+
+      let filteredListings = savedListings;
+
+      // Si el usuario escribió una palabra clave, filtramos el campo ingenieria
+      if (keyword) {
+        filteredListings = savedListings.filter(item => 
+          item.ingenieria && item.ingenieria.toLowerCase().includes(keyword)
+        );
+      }
+
+      if (filteredListings.length === 0) {
+        return res.send({
+          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+          data: { content: `🔍 No se encontraron pasantías que coincidan con la palabra clave: "**${keyword}**".` },
+        });
+      }
+
+      const latestItems = filteredListings.slice(0, 5);
       const embeds = generateEmbeds(latestItems);
+
+      // CORRECCIÓN: Se cambió el punto "." por el signo de interrogación "?" en el operador ternario
+      const responseText = keyword
+        ? `📋 **Mostrando ${latestItems.length} pasantía(s) para "${keyword}" (de ${filteredListings.length} encontradas):**`
+        : `📋 **Mostrando las últimas ${latestItems.length} pasantías registradas:**`;
 
       return res.send({
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
         data: {
-          content: `📋 **Mostrando las últimas ${latestItems.length} pasantías registradas:**`,
+          content: responseText,
           embeds: embeds,
         },
       });
@@ -237,7 +286,7 @@ app.listen(PORT, () => {
   console.log('Listening on port', PORT);
 });
 
-// Endpoint externo para activar mediante cron-job.org u otros servicios 24/7
+// Endpoint externo para activar mediante cron-job.org
 app.get('/trigger-check', async (req, res) => {
   console.log('Ejecutando revisión manual/externa de pasantías...');
   const result = await processInternships(true);

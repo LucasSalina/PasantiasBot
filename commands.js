@@ -53,7 +53,15 @@ const SETCHANNEL_COMMAND = {
 
 const LATEST_COMMAND = {
   name: 'latest',
-  description: 'Muestra las últimas 5 pasantías registradas',
+  description: 'Muestra las últimas pasantías registradas, opcionalmente filtradas por ingeniería',
+  options: [
+    {
+      type: 3, // Tipo 3 = STRING (Texto)
+      name: 'keyword',
+      description: 'Filtrar por ingeniería (ej. sistemas, industrial, programacion)',
+      required: false, // Opcional: si no se escribe nada, muestra las últimas generales
+    },
+  ],
   type: 1,
   integration_types: [0, 1],
   contexts: [0, 1, 2],
