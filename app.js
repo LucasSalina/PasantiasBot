@@ -167,12 +167,13 @@ async function processInternships(isAutomatic = false) {
 /**
  * Interactions endpoint URL donde Discord envía las solicitudes HTTP
  */
-app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async function (req, res) {
+// Asegúrate de incluir 'next' como tercer parámetro: (req, res, next)
+app.post('/interactions', (req, res, next) => {
   console.log("📥 ¡Petición de Discord recibida en /interactions!");
-    next();
+  next();
   }, verifyKeyMiddleware(process.env.PUBLIC_KEY), async function (req, res) {
-    const { type, data, token } = req.body;
-    console.log("⚙️ Tipo de interacción procesada:", type);
+  const { type, data, token } = req.body;
+  console.log("⚙️ Tipo de interacción procesada:", type);
 
   if (type === InteractionType.PING) {
     return res.send({ type: InteractionResponseType.PONG });
