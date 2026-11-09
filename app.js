@@ -209,22 +209,14 @@ app.post('/interactions', (req, res, next) => {
     }
 
     if (name === 'scrape') {
+      res.send({
+        type: InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
+      });
+
       const result = await processInternships(false);
 
-      if (!result.embeds) {
-        return res.send({
-          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-          data: { content: result.content },
-        });
-      }
-
-      return res.send({
-        type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-        data: {
-          content: result.content,
-          embeds: result.embeds,
-        },
-      });
+      await editOriginalResponse(token, result.content, result.embeds || []);
+      return;
     }
 
     if (name === 'latest') {
