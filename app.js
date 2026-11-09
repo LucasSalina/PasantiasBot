@@ -168,8 +168,11 @@ async function processInternships(isAutomatic = false) {
  * Interactions endpoint URL donde Discord envía las solicitudes HTTP
  */
 app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async function (req, res) {
-  // Extraemos el token y datos de la petición de Discord
-  const { type, data, token } = req.body;
+  console.log("📥 ¡Petición de Discord recibida en /interactions!");
+    next();
+  }, verifyKeyMiddleware(process.env.PUBLIC_KEY), async function (req, res) {
+    const { type, data, token } = req.body;
+    console.log("⚙️ Tipo de interacción procesada:", type);
 
   if (type === InteractionType.PING) {
     return res.send({ type: InteractionResponseType.PONG });
@@ -177,7 +180,7 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
 
   if (type === InteractionType.APPLICATION_COMMAND) {
     const { name } = data;
-    
+
   if (name === 'setchannel') {
       const channelOption = data.options?.find(opt => opt.name === 'canal');
       
@@ -319,3 +322,4 @@ app.get('/trigger-check', async (req, res) => {
 app.get('/ping', (req, res) => {
   res.status(200).send('Pong! 🚀');
 });
+
