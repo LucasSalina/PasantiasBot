@@ -289,7 +289,7 @@ app.post('/interactions', (req, res, next) => {
 });
 
 // Programa la tarea automática todos los días a las 12:00 PM
-cron.schedule('0 12 * * *', async () => {
+cron.schedule('0 9,18 * * *', async () => {
   console.log('Ejecutando revisión automática de pasantías (12:00 PM)...');
   const result = await processInternships(true);
   if (result.success && result.newCount > 0) {
